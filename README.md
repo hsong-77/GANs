@@ -3,6 +3,7 @@
 ## What's in it?
 
 1.[Vanilla GAN](https://arxiv.org/abs/1406.2661)
+!(png/gan.png)
 
 ## Referenced code
 
@@ -12,4 +13,3 @@
 
 
 
-iE_{x\sim p_{data}(x)}[\log D(x)]+E_{z\sim p_{z}(z)}[\log (1-D(G(z)))]
