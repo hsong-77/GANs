@@ -3,6 +3,11 @@
 ## What's in it?
 
 1.[Vanilla GAN](https://arxiv.org/abs/1406.2661)
+
+## 
+
+### GAN
+
 ![](https://github.com/huihuisong/GANs/blob/master/png/gan.png)
 
 ## Referenced code
