@@ -1,111 +1,91 @@
 import tensorflow as tf
-from tensorflow.examples.tutorials.mnist import input_data
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import os
 
-
-def xavier_init(size):
-    xavier_stddev = 1.0 / tf.sqrt(size[0] / 2.0)
-    return tf.random_normal(shape = size, stddev = xavier_stddev)
-
-
-X = tf.placeholder(tf.float32, shape = [None, 784])
-
-D_W1 = tf.Variable(xavier_init([784, 128]))
-D_b1 = tf.Variable(tf.zeros(shape = [128]))
-D_W2 = tf.Variable(xavier_init([128, 1]))
-D_b2 = tf.Variable(tf.zeros(shape = [1]))
-theta_D = [D_W1, D_W2, D_b1, D_b2]
-
-Z = tf.placeholder(tf.float32, shape = [None, 100])
-
-G_W1 = tf.Variable(xavier_init([100, 128]))
-G_b1 = tf.Variable(tf.zeros(shape = [128]))
-G_W2 = tf.Variable(xavier_init([128, 784]))
-G_b2 = tf.Variable(tf.zeros(shape = [784]))
-theta_G = [G_W1, G_W2, G_b1, G_b2]
+from data.load import celeba
+from nets.conv import *
+from utils import *
 
 
-def sample_Z(m, n):
-    return np.random.uniform(-1.0, 1.0, size = [m, n])
+class w_gan:
+    def __init__(self, generator, discriminator, data, sess, height = 64, width = 64, iters = 1000000):
+        self.height = height
+        self.width = width
+        self.z_dim = 100
+        self.g_channels = [1024, 512, 256, 128]
+        self.d_channels = [64, 128, 256, 512]
+
+        self.batch_size = 32
+        self.learning_rate = 1e-4
+        self.iters = iters
+        self.d_iters = 5
+
+        self.sess = sess
+
+        self.generator = generator
+        self.discriminator = discriminator
+        self.data = data
+
+        self.generator.set(g_channels)
+        self.discriminator.set(d_channels)
+        self.build_model()
 
 
-def generator(z):
-    G_h1 = tf.nn.relu(tf.matmul(z, G_W1) + G_b1)
-    G_log_prob = tf.matmul(G_h1, G_W2) + G_b2
-    G_prob = tf.nn.sigmoid(G_log_prob)
+    def build_model(self):
+        self.x = tf.placeholder(tf.float32, shape = [None, self.height, self.width, 3])
+        self.z = tf.placeholder(tf.float32, shape = [None, self.z_dim])
 
-    return G_prob
+        self.g_sample = self.generator(self.z)
+        _, d_real_logit = self.discriminator(self.x)
+        _, d_fake_logit = self.discriminator(self.g_sample, reuse = True)
 
-
-def discriminator(x):
-    D_h1 = tf.nn.relu(tf.matmul(x, D_W1) + D_b1)
-    out = tf.matmul(D_h1, D_W2) + D_b2
-
-    return out
+        self.d_loss = -tf.reduce_mean(d_real_logit) + tf.reduce_mean(d_fake_logit)
+        self.g_loss = -tf.reduce_mean(d_fake_logit)
 
 
-def plot(samples):
-    fig = plt.figure(figsize = (4, 4))
-    gs = gridspec.GridSpec(4, 4)
-    gs.update(wspace = 0.05, hspace = 0.05)
+    def train(self):
+        d_solver = tf.train.RMSPropOptimizer(self.learning_rate).minimize(self.d_loss, var_list = self.discriminator.vars)
+        g_solver = tf.train.RMSPropOptimizer(self.learning_rate).minimize(self.g_loss, var_list = self.generator.vars)
 
-    for i, sample in enumerate(samples):
-        ax = plt.subplot(gs[i])
-        plt.axis = 'off'
-        ax.set_xticklabels([])
-        ax.set_yticklabels([])
-        ax.set_aspect('equal')
-        plt.imshow(sample.reshape(28, 28), cmap = 'Greys_r')
+        clip_d = [var.assign(tf.clip_by_value(var, -0.01, 0.01)) for var in self.discriminator.vars]
 
-    return fig
+        self.sess.run(tf.global_variables_initializer())
+
+        if not os.path.exists('out/'):
+            os.makedirs('out/')
+
+        i = 0
+        for it in range(self.iters):
+            if it % 1000 == 0:
+                samples = sess.run(self.g_sample, feed_dict = {self.z: sample_z(16, self.z_dim)})
+                fig = data2img(samples)
+                plt.savefig('out/{}.png'.format(str(i).zfill(3)), bbox_inches = 'tight')
+                i += 1
+                plt.close(fig)
+    
+            for _ in range(self.d_iters):
+                x_batch = self.data.next_batch(self.batch_size)
+                _, d_loss_curr, _ = sess.run([d_solver, self.d_loss, clip_d], feed_dict = {self.x: x_batch, self.z: sample_z(self.batch_size, self.z_dim)})
+            _, g_loss_curr = sess.run([g_solver, self.g_loss], feed_dict = {self.z: sample_z(self.batch_size, self.z_dim)})
+
+            if it % 1000 == 0:
+                print('Iter: {}'.format(it))
+                print('d_loss: {:.4}'. format(d_loss_curr))
+                print('g_loss: {:.4}'. format(g_loss_curr))
+                print()
 
 
-G_sample = generator(Z)
+if __name__ == '__main__':
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
-D_real = discriminator(X)
-D_fake = discriminator(G_sample)
+    generator = g_conv()
+    discriminator = d_conv()
+    data = celeba()
 
-D_loss = tf.reduce_mean(D_real) - tf.reduce_mean(D_fake)
-G_loss = tf.reduce_mean(D_fake)
+    sess = tf.Session()
 
-D_solver = tf.train.RMSPropOptimizer(learning_rate = 1e-4).minimize(-D_loss, var_list = theta_D)
-G_solver = tf.train.RMSPropOptimizer(learning_rate = 1e-4).minimize(-G_loss, var_list = theta_G)
-
-clip_D = [p.assign(tf.clip_by_value(p, -0.01, 0.01)) for p in theta_D]
-
-mb_size = 32
-Z_dim = 100
-
-mnist = input_data.read_data_sets('../../MNIST_data', one_hot = True)
-
-sess = tf.Session()
-sess.run(tf.global_variables_initializer())
-
-if not os.path.exists('out/'):
-    os.makedirs('out/')
-
-i = 0
-
-for it in range(1000000):
-    if it % 1000 == 0:
-        samples = sess.run(G_sample, feed_dict = {Z: sample_Z(16, Z_dim)})
-
-        fig = plot(samples)
-        plt.savefig('out/{}.png'.format(str(i).zfill(3)), bbox_inches = 'tight')
-        i += 1
-        plt.close(fig)
-
-    for _ in range(5):
-        X_mb, _ = mnist.train.next_batch(mb_size)
-        _, D_loss_curr, _  = sess.run([D_solver, D_loss, clip_D], feed_dict = {X: X_mb, Z: sample_Z(mb_size, Z_dim)})
-    _, G_loss_curr = sess.run([G_solver, G_loss], feed_dict = {Z: sample_Z(mb_size, Z_dim)})
-
-    if it % 1000 == 0:
-        print('Iter: {}'.format(it))
-        print('D_loss: {:.4}'. format(D_loss_curr))
-        print('G_loss: {:.4}'.format(G_loss_curr))
-        print()
+    gan = w_gan(generator, discriminator, data, sess)
+    gan.train()
 

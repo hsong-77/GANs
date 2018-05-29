@@ -8,7 +8,7 @@ import argparse
 import subprocess
 from six.moves import urllib
 
-from data.config import *
+from config import *
 
 
 def download_mnist():

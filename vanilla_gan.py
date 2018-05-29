@@ -5,8 +5,8 @@ import matplotlib.gridspec as gridspec
 import os
 
 from data.load import mnist
+from nets.mlp import *
 from utils import *
-from net import *
 
 
 class vanilla_gan:
@@ -69,8 +69,8 @@ class vanilla_gan:
 
             if it % 1000 == 0:
                 print('Iter: {}'.format(it))
-                print('D_loss: {:.4}'. format(d_loss_curr))
-                print('G_loss: {:.4}'.format(g_loss_curr))
+                print('d_loss: {:.4}'. format(d_loss_curr))
+                print('g_loss: {:.4}'. format(g_loss_curr))
                 print()
 
 

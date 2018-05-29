@@ -40,6 +40,7 @@ class d_mlp_mnist():
 
         return d
 
+
     def set(self, h_dim):
         self.h_dim = h_dim
 
