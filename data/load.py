@@ -77,7 +77,8 @@ class celeba():
     def __init__(self):
         self.channel = 3
         self.size = 64
-        self.__data = glob(os.path.join(data_path, '*.jpg'))
+        data_dir = os.path.join(data_dirpath, 'celeba')
+        self.__data = glob(os.path.join(data_dir, '*.jpg'))
         self.__batch_start = 0
 
 
@@ -87,30 +88,30 @@ class celeba():
         batch_end = self.__batch_start + batch_size
         data_size = len(self.__data)
         if batch_end < data_size:
-            batch_path = self.__datra[self.__batch_start : batch_end]
+            batch_path = self.__data[self.__batch_start : batch_end]
             self.__batch_start = batch_end
         else:
             batch_path = np.concatenate((self.__data[self.__batch_start : data_size], self.__data[0 : batch_end - data_size]), axis = 0)
             self.__batch_start = batch_end - data_size
 
-        batch_image = [get_image(img_path, True, 128, 128, self.size, self.size) for img_path in batch_path]
+        batch_image = [get_image(img_path, 128, 128, self.size, self.size) for img_path in batch_path]
         batch_image = np.array(batch_image).astype(np.float32)
 
         return batch_image
 
 
-def get_image(img_path, is_crop = True, crop_h, crop_w, resize_h, resize_w):
+def get_image(img_path, crop_h, crop_w, resize_h, resize_w, is_crop = True):
     image = scipy.misc.imread(img_path).astype(np.float)
 
-	if is_crop:
-		h, w = image.shape[: 2]
-		j = int(round((h - crop_h) / 2.))
-		i = int(round((w - crop_w) / 2.))
-		cropped_image = scipy.misc.imresize(image[j:j+crop_h, i:i+crop_w], [resize_h, resize_w])
-	else:
-		cropped_image = scipy.misc.imresize(image, [resize_h, resize_w])
+    if is_crop:
+        h, w = image.shape[: 2]
+        j = int(round((h - crop_h) / 2.))
+        i = int(round((w - crop_w) / 2.))
+        cropped_image = scipy.misc.imresize(image[j:j+crop_h, i:i+crop_w], [resize_h, resize_w])
+    else:
+        cropped_image = scipy.misc.imresize(image, [resize_h, resize_w])
 
-	return np.array(cropped_image) / 127.5 - 1
+    return np.array(cropped_image) / 127.5 - 1
 
 
 if __name__ == '__main__':

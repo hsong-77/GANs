@@ -9,7 +9,7 @@ from nets.conv import *
 from utils import *
 
 
-class dc_gan:
+class w_gan_gp:
     def __init__(self, generator, discriminator, data, sess, height = 64, width = 64, iters = 1000000):
         self.height = height
         self.width = width
@@ -20,6 +20,8 @@ class dc_gan:
         self.batch_size = 32
         self.learning_rate = 1e-4
         self.iters = iters
+        self.d_iters = 5
+        self.lam = 10
 
         self.sess = sess
 
@@ -27,8 +29,8 @@ class dc_gan:
         self.discriminator = discriminator
         self.data = data
 
-        self.generator.set(self.g_channels)
-        self.discriminator.set(self.d_channels)
+        self.generator.set(g_channels)
+        self.discriminator.set(True, d_channels)
         self.build_model()
 
 
@@ -37,18 +39,24 @@ class dc_gan:
         self.z = tf.placeholder(tf.float32, shape = [None, self.z_dim])
 
         self.g_sample = self.generator(self.z)
-        d_real, d_real_logit = self.discriminator(self.x)
-        d_fake, d_fake_logit = self.discriminator(self.g_sample, reuse = True)
+        _, d_real_logit = self.discriminator(self.x)
+        _, d_fake_logit = self.discriminator(self.g_sample, reuse = True)
 
-        d_real_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits = d_real_logit, labels = tf.ones_like(d_real)))
-        d_fake_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits = d_fake_logit, labels = tf.zeros_like(d_fake)))
-        self.d_loss = d_real_loss + d_fake_loss
-        self.g_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits = d_fake_logit, labels = tf.ones_like(d_fake)))
+        self.d_loss = -tf.reduce_mean(d_real_logit) + tf.reduce_mean(d_fake_logit)
+        self.g_loss = -tf.reduce_mean(d_fake_logit)
+
+        alpha = tf.random_uniform([self.batch_size, 1], minval = 0., maxval = 1.)
+        interpolates = alpha * self.x + (1. - alpha) * self.g_sample
+        grad = tf.gradients(self.discriminator(interpolates), [interpolates])[0]
+        grad_norm = tf.sqrt(tf.reduce_sum(grad ** 2, axis = 1))
+        grad_pen = self.lam * tf.reduce_mean((grad_norm - 1.) ** 2)
+
+        self.d_loss += grad_pen
 
 
     def train(self):
-        d_solver = tf.train.AdamOptimizer(self.learning_rate).minimize(self.d_loss, var_list = self.discriminator.vars)
-        g_solver = tf.train.AdamOptimizer(self.learning_rate).minimize(self.g_loss, var_list = self.generator.vars)
+        d_solver = tf.train.AdamOptimizer(self.learning_rate, beta1 = 0.5, beta2 = 0.9).minimize(self.d_loss, var_list = self.discriminator.vars)
+        g_solver = tf.train.AdamOptimizer(self.learning_rate, bata1 = 0.5, beta2 = 0.9).minimize(self.g_loss, var_list = self.generator.vars)
 
         self.sess.run(tf.global_variables_initializer())
 
@@ -57,17 +65,16 @@ class dc_gan:
 
         i = 0
         for it in range(self.iters):
-            print(it)
             if it % 1000 == 0:
                 samples = sess.run(self.g_sample, feed_dict = {self.z: sample_z(16, self.z_dim)})
-                fig = data2img(samples, False)
+                fig = data2img(samples)
                 plt.savefig('out/{}.png'.format(str(i).zfill(3)), bbox_inches = 'tight')
                 i += 1
                 plt.close(fig)
     
-            x_batch = self.data.next_batch(self.batch_size)
-
-            _, d_loss_curr = sess.run([d_solver, self.d_loss], feed_dict = {self.x: x_batch, self.z: sample_z(self.batch_size, self.z_dim)})
+            for _ in range(self.d_iters):
+                x_batch = self.data.next_batch(self.batch_size)
+                _, d_loss_curr = sess.run([d_solver, self.d_loss], feed_dict = {self.x: x_batch, self.z: sample_z(self.batch_size, self.z_dim)})
             _, g_loss_curr = sess.run([g_solver, self.g_loss], feed_dict = {self.z: sample_z(self.batch_size, self.z_dim)})
 
             if it % 1000 == 0:
@@ -86,6 +93,6 @@ if __name__ == '__main__':
 
     sess = tf.Session()
 
-    gan = dc_gan(generator, discriminator, data, sess)
+    gan = w_gan(generator, discriminator, data, sess)
     gan.train()
 

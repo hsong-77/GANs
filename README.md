@@ -2,9 +2,11 @@
 
 ## What's in it?
 
-1.[Vanilla GAN](https://arxiv.org/abs/1406.2661)
+1.[Vanilla GAN](https://arxiv.org/pdf/1406.2661.pdf)
+2.[DC GAN](https://arxiv.org/pdf/1511.06434.pdf)
+3.[Wasserstein GAN](https://arxiv.org/pdf/1701.07875.pdf)
+4.[Improved Wasserstein GAN](https://arxiv.org/pdf/1704.00028.pdf)
 
-## 
 
 ### GAN
 
