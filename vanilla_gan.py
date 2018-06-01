@@ -36,8 +36,8 @@ class vanilla_gan:
         self.z = tf.placeholder(tf.float32, shape = [None, self.z_dim])
 
         self.g_sample = self.generator(self.z)
-        d_real = self.discriminator(self.x)
-        d_fake = self.discriminator(self.g_sample, reuse = True)
+        d_real, _ = self.discriminator(self.x)
+        d_fake, _ = self.discriminator(self.g_sample, reuse = True)
 
         self.d_loss = -tf.reduce_mean(tf.log(d_real) + tf.log(1. - d_fake))
         self.g_loss = -tf.reduce_mean(tf.log(d_fake))
