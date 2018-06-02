@@ -39,8 +39,8 @@ class vanilla_gan:
         _, d_real_logit = self.discriminator(self.x)
         _, d_fake_logit = self.discriminator(self.g_sample, reuse = True)
 
-        self.d_loss = 0.5 * tf.reduce_mean((d_real_logit - 1) ** 2) + 0.5 * tf.reduce_mean((d_fake_logit + 1) ** 2)
-        self.g_loss = 0.5 * tf.reduce_mean(d_fake_logit ** 2)
+        self.d_loss = 0.5 * tf.reduce_mean((d_real_logit - 1) ** 2) + 0.5 * tf.reduce_mean(d_fake_logit ** 2)
+        self.g_loss = 0.5 * tf.reduce_mean((d_fake_logit - 1) ** 2)
 
 
     def train(self):
