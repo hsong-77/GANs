@@ -6,7 +6,8 @@
 * [DC GAN](https://arxiv.org/pdf/1511.06434.pdf)
 * [Wasserstein GAN](https://arxiv.org/pdf/1701.07875.pdf)
 * [Improved Wasserstein GAN](https://arxiv.org/pdf/1704.00028.pdf)
-
+* [Least Squares GAN](https://arxiv.org/abs/1611.04076)
+* [Conditional GAN](https://arxiv.org/abs/1411.1784)
 
 ### GAN
 
