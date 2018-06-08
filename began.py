@@ -9,7 +9,7 @@ from nets.mlp import *
 from utils import *
 
 
-class eb_gan:
+class be_gan:
     def __init__(self, generator, discriminator, data, sess, height = 28, width = 28, iters = 1000000):
         self.x_dim = height * width
         self.y_dim = 10
@@ -20,7 +20,8 @@ class eb_gan:
         self.learning_rate = 1e-4
         self.iters = iters
 
-        self.margin = 5
+        self.lam = 1e-3
+        self.gamma = 0.5
 
         self.sess = sess
 
@@ -42,7 +43,7 @@ class eb_gan:
         self.d_real = self.discriminator(self.x)
         self.d_fake = self.discriminator(self.g_sample, reuse = True)
 
-        self.d_loss = d_real - tf.maximum(self.margin - d_fake, 0.)
+        self.d_loss = d_real - k * d_fake
         self.g_loss = d_fake
 
 
@@ -55,6 +56,7 @@ class eb_gan:
         if not os.path.exists('out/'):
             os.makedirs('out/')
 
+        k_next = 0
         i = 0
         for it in range(self.iters):
             if it % 1000 == 0:
@@ -67,24 +69,15 @@ class eb_gan:
             x_batch, _ = self.data.next_batch(self.batch_size)
             x_batch = np.reshape(x_batch, (-1, self.x_dim))
 
-            _, d_loss_cur = sess.run([d_solver, self.d_loss], feed_dict = {self.x: x_batch, self.z: sample_z(self.batch_size, self.z_dim)})
-            _, g_loss_cur = sess.run([g_solver, self.g_loss], feed_dict = {self.z: sample_z(self.batch_size, self.z_dim)})
+            _, d_real, d_fake = sess.run([d_solver, self.d_real, self.d_fake], feed_dict = {self.x: x_batch, self.z: sample_z(self.batch_size, self.z_dim), self.k: k_next})
+            sess.run([g_solver], feed_dict = {self.z: sample_z(self.batch_size, self.z_dim)})
+            k_next = self.k + self.lam * (self.gamma * d_real - d_fake)
 
             if it % 1000 == 0:
+                convergence = d_real + np.abs(self.gamma * d_real - d_fake)
                 print('Iter: {}'.format(it))
-                print('d_loss: {:.4}'. format(d_loss_cur))
-                print('g_loss: {:.4}'. format(g_loss_cur))
+                print('convergence: {:.4}'. format(convergence))
                 print()
-
-
-    def _pullaway_loss(self, emb):
-        norm = tf.sqrt(tf.reduce_sum(emb ** 2, 1, keep_dims = True))
-        normalized_emb = emb / norm
-        similarity = tf.matmul(normalized_emb, normalized_emb, transpose_b = True)
-        batch_size = tf.cast(tf.shape(emb)[0], tf.float32)
-        pt_loss = (tf.reduce_sum(similarity) - batch_size) / (batch_size * (batch_size - 1)) 
-
-        return pt_loss
 
 
 if __name__ == '__main__':
@@ -96,6 +89,6 @@ if __name__ == '__main__':
 
     sess = tf.Session()
 
-    gan = eb_gan(generator, discriminator, data, sess)
+    gan = be_gan(generator, discriminator, data, sess)
     gan.train()
 

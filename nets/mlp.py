@@ -76,3 +76,30 @@ class q_mlp_mnist():
         self.h_dim = h_dim
         self.c_dim = c_dim
 
+
+class d_mlp_autoencoder_mnist():
+    def __init__(self):
+        self.name = 'd_mlp_mnist'
+
+
+    def __call__(self, x, reuse = False):
+        with tf.variable_scope(self.name) as vs:
+            if reuse:
+                vs.reuse_variables()
+            e = tcl.fully_connected(x, self.h_dim, activation_fn = tf.nn.relu, weights_initializer = tf.random_normal_initializer(0, 0.02))
+            d = tcl.fully_connected(e, self.x_dim, activation_fn = None, weights_initializer = tf.random_normal_initializer(0, 0.02))
+            mes = tf.reduce_mean(tf.reduce_sum((d - x) ** 2, axis = 1))
+
+        return mes
+
+
+    def set(self, x_dim, h_dim):
+        self.h_dim = h_dim
+        self.x_dim = x_dim
+
+
+    @property
+    def vars(self):
+        return tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope = self.name)
+
+
