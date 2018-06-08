@@ -66,3 +66,40 @@ class d_conv():
     def vars(self):
         return tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope = self.name)
 
+
+class d_conv_autoencoder():
+    def __init__(self):
+        self.name = 'd_conv_autoencoder'
+
+
+    def __call__(self, x, reuse = False):
+        with tf.variable_scope(self.name) as vs:
+            if reuse:
+                vs.reuse_variables()
+            #encoder
+            e = tcl.conv2d(x, self.channels[0], kernel_size = (5, 5), stride = 2, padding = 'SAME', activation_fn = leaky_relu, weights_initializer=tf.random_normal_initializer(0, 0.02))
+            e = tcl.conv2d(e, self.channels[1], kernel_size = (5, 5), stride = 2, padding = 'SAME', activation_fn = leaky_relu, normalizer_fn = tcl.batch_norm, weights_initializer=tf.random_normal_initializer(0, 0.02))
+            e = tcl.conv2d(e, self.channels[2], kernel_size = (5, 5), stride = 2, padding = 'SAME', activation_fn = leaky_relu, normalizer_fn = tcl.batch_norm, weights_initializer=tf.random_normal_initializer(0, 0.02))
+            e = tcl.conv2d(e, self.channels[3], kernel_size = (5, 5), stride = 2, padding = 'SAME', activation_fn = leaky_relu, normalizer_fn = tcl.batch_norm, weights_initializer=tf.random_normal_initializer(0, 0.02))
+            e = tcl.flatten(e)
+            #decoder
+            d = tcl.fully_connected(e, self.size * self.size * self.channels[4], activation_fn = tf.nn.relu, normalizer_fn = tcl.batch_norm, weights_initializer=tf.random_normal_initializer(0, 0.02))
+            d = tf.reshape(d, [-1, self.size, self.size, self.channels[4]])
+            d = tcl.conv2d_transpose(d, self.channels[3], kernel_size = (5, 5), stride = 2, padding = 'SAME', activation_fn = tf.nn.relu, normalizer_fn = tcl.batch_norm, weights_initializer=tf.random_normal_initializer(0, 0.02))
+            d = tcl.conv2d_transpose(d, self.channels[2], kernel_size = (5, 5), stride = 2, padding = 'SAME', activation_fn = tf.nn.relu, normalizer_fn = tcl.batch_norm, weights_initializer=tf.random_normal_initializer(0, 0.02))
+            d = tcl.conv2d_transpose(d, self.channels[1], kernel_size = (5, 5), stride = 2, padding = 'SAME', activation_fn = tf.nn.relu, normalizer_fn = tcl.batch_norm, weights_initializer=tf.random_normal_initializer(0, 0.02))
+            d = tcl.conv2d_transpose(d, 3, kernel_size = (5, 5), stride = 2, padding = 'SAME', activation_fn = tf.nn.tanh, weights_initializer=tf.random_normal_initializer(0, 0.02))
+
+        return d
+
+
+    def set(self, channels = [64, 128, 256, 512, 1024], size = 4):
+        self.channels = channels
+        self.size = size
+
+
+    @property
+    def vars(self):
+        return tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope = self.name)
+
+

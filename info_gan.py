@@ -5,12 +5,12 @@ import matplotlib.gridspec as gridspec
 import os
 
 from data.load import mnist
-from nets.mlp_q import *
+from nets.mlp import *
 from utils import *
 
 
 class info_gan:
-    def __init__(self, generator, discriminator, data, sess, height = 28, width = 28, iters = 1000000):
+    def __init__(self, generator, discriminator, classfier, data, sess, height = 28, width = 28, iters = 1000000):
         self.x_dim = height * width
         self.y_dim = 10
         self.z_dim = 100    #16
@@ -25,10 +25,12 @@ class info_gan:
 
         self.generator = generator
         self.discriminator = discriminator
+        slef.classfier = classfier
         self.data = data
 
         self.generator.set(self.x_dim, self.h_dim)
-        self.discriminator.set(self.h_dim, self.c_dim)
+        self.discriminator.set(self.h_dim)
+        self.classfier.set(self.h_dim, self.c_idm)
         self.build_model()
 
 
@@ -39,7 +41,8 @@ class info_gan:
 
         self.g_sample = self.generator(self.z, self.c)
         d_real, _ = self.discriminator(self.x)
-        d_fake, q_fake = self.discriminator(self.g_sample, reuse = True)
+        d_fake, _ = self.discriminator(self.g_sample, reuse = True)
+        q_fake = self.classfier(self.g_sample)
 
         d_real_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits = d_real, labels = tf.ones_like(d_real)))
         d_fake_loss = tf.reduce_mean(tf.nn.sigmoid_cross_entropy_with_logits(logits = d_fake, labels = tf.zeros_like(d_fake)))
@@ -51,7 +54,7 @@ class info_gan:
     def train(self):
         d_solver = tf.train.AdamOptimizer(self.learning_rate).minimize(self.d_loss, var_list = self.discriminator.vars)
         g_solver = tf.train.AdamOptimizer(self.learning_rate).minimize(self.g_loss, var_list = self.generator.vars)
-        q_solver = tf.train.AdamOptimizer(self.learning_rate).minimize(self.q_loss, var_list = self.generator.vars + self.discriminator.vars)
+        q_solver = tf.train.AdamOptimizer(self.learning_rate).minimize(self.q_loss, var_list = self.generator.vars + self.classfier.vars)
 
         self.sess.run(tf.global_variables_initializer())
 
@@ -71,10 +74,10 @@ class info_gan:
                 plt.savefig('out/{}.png'.format(str(i).zfill(3)), bbox_inches = 'tight')
                 i += 1
                 plt.close(fig)
-    
+
             x_batch, _ = self.data.next_batch(self.batch_size)
             x_batch = np.reshape(x_batch, (-1, self.x_dim))
-            
+
             _, d_loss_curr = sess.run([d_solver, self.d_loss], feed_dict = {self.x: x_batch, self.z: sample_z(self.batch_size, self.z_dim), self.c: self._sample_c(self.batch_size)})
             _, g_loss_curr = sess.run([g_solver, self.g_loss], feed_dict = {self.z: sample_z(self.batch_size, self.z_dim), self.c: self._sample_c(self.batch_size)})
             sess.run([q_solver], feed_dict = {self.z: sample_z(self.batch_size, self.z_dim), self.c: self._sample_c(self.batch_size)})
@@ -99,12 +102,13 @@ class info_gan:
 if __name__ == '__main__':
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
-    generator = g_mlp_q_mnist()
-    discriminator = d_mlp_q_mnist()
+    generator = g_mlp_mnist()
+    discriminator = d_mlp_mnist()
+    classfier = q_mlp_mnist()
     data = mnist()
 
     sess = tf.Session()
 
-    gan = vanilla_gan(generator, discriminator, data, sess)
+    gan = info_gan(generator, discriminator, classfier, data, sess)
     gan.train()
 

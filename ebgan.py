@@ -4,19 +4,22 @@ import matplotlib.pyplot as plt
 import matplotlib.gridspec as gridspec
 import os
 
-from data.load import mnist
-from nets.mlp import *
+from data.load import celeba
+from nets.conv import *
 from utils import *
 
 
-class vanilla_gan:
-    def __init__(self, generator, discriminator, data, sess, height = 28, width = 28, iters = 1000000):
-        self.x_dim = height * width
-        self.y_dim = 10
+class eb_gan:
+    def __init__(self, generator, discriminator, data, sess, height = 64, width = 64, iters = 1000000):
+        self.height = height
+        self.width = width
         self.z_dim = 100
-        self.h_dim = 128
+        self.g_channels = [1024, 512, 256, 128]
+        self.d_channels = [64, 128, 256, 512, 1024]
+        self.margin = 10
+        self.pt_loss_weight = 0.1
 
-        self.batch_size = 128
+        self.batch_size = 32
         self.learning_rate = 1e-4
         self.iters = iters
 
@@ -26,21 +29,22 @@ class vanilla_gan:
         self.discriminator = discriminator
         self.data = data
 
-        self.generator.set(self.x_dim, self.h_dim)
-        self.discriminator.set(self.h_dim)
+        self.generator.set(self.g_channels)
+        self.discriminator.set(self.d_channels)
         self.build_model()
 
 
     def build_model(self):
-        self.x = tf.placeholder(tf.float32, shape = [None, self.x_dim])
+        self.x = tf.placeholder(tf.float32, shape = [None, self.height, self.width, 3])
         self.z = tf.placeholder(tf.float32, shape = [None, self.z_dim])
 
         self.g_sample = self.generator(self.z)
-        _, d_real_logit = self.discriminator(self.x)
-        _, d_fake_logit = self.discriminator(self.g_sample, reuse = True)
+        d_real = self.discriminator(self.x)
+        d_fake = self.discriminator(self.g_sample, reuse = True)
 
-        self.d_loss = 0.5 * tf.reduce_mean((d_real_logit - 1) ** 2) + 0.5 * tf.reduce_mean((d_fake_logit + 1) ** 2)
-        self.g_loss = 0.5 * tf.reduce_mean(d_fake_logit ** 2)
+        d_fake_loss = self._mse_loss(self.g_sample, d_fake)
+        self.d_loss = self._mse_loss(self.x, d_real) + tf.maximum(self.margin - d_fake_loss, 0)
+        self.g_loss = d_fake_loss + self.pt_loss_weight * self._pullaway_loss(d_fake)
 
 
     def train(self):
@@ -54,15 +58,15 @@ class vanilla_gan:
 
         i = 0
         for it in range(self.iters):
+            print(it)
             if it % 1000 == 0:
                 samples = sess.run(self.g_sample, feed_dict = {self.z: sample_z(16, self.z_dim)})
-                fig = data2img(samples)
+                fig = data2img(samples, False)
                 plt.savefig('out/{}.png'.format(str(i).zfill(3)), bbox_inches = 'tight')
                 i += 1
                 plt.close(fig)
     
-            x_batch, _ = self.data.next_batch(self.batch_size)
-            x_batch = np.reshape(x_batch, (-1, self.x_dim))
+            x_batch = self.data.next_batch(self.batch_size)
 
             _, d_loss_curr = sess.run([d_solver, self.d_loss], feed_dict = {self.x: x_batch, self.z: sample_z(self.batch_size, self.z_dim)})
             _, g_loss_curr = sess.run([g_solver, self.g_loss], feed_dict = {self.z: sample_z(self.batch_size, self.z_dim)})
@@ -74,15 +78,29 @@ class vanilla_gan:
                 print()
 
 
+    def _mse_loss(self, emb):
+        return tf.reduce_mean(tf.reduce_sum((data - emb) ** 2, axis = 1))
+
+
+    def _pullaway_loss(self, emb):
+        norm = tf.sqrt(tf.reduce_sum(emb ** 2, 1, keep_dims = True))
+        normalized_emb = emb / norm
+        similarity = tf.matmul(normalized_emb, normalized_emb, transpose_b = True)
+        batch_size = tf.cast(tf.shape(emb)[0], tf.float32)
+        pt_loss = (tf.reduce_sum(similarity) - batch_size) / (batch_size * (batch_size - 1))
+
+        return pt_loss
+
+
 if __name__ == '__main__':
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
 
-    generator = g_mlp_mnist()
-    discriminator = d_mlp_mnist()
-    data = mnist()
+    generator = g_conv()
+    discriminator = d_conv_autoencoder()
+    data = celeba()
 
     sess = tf.Session()
 
-    gan = vanilla_gan(generator, discriminator, data, sess)
+    gan = dc_gan(generator, discriminator, data, sess)
     gan.train()
 

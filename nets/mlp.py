@@ -58,3 +58,21 @@ class d_mlp_mnist():
     def vars(self):
         return tf.get_collection(tf.GraphKeys.TRAINABLE_VARIABLES, scope = self.name)
 
+
+class q_mlp_mnist():
+    def __init__(self):
+        self.name = 'q_mlp_mnist'
+
+
+    def __call__(self, x):
+        with tf.variable_scope(self.name) as vs:
+            q = tcl.fully_connected(x, self.h_dim, activation_fn = tf.nn.relu, weights_initializer = tf.random_normal_initializer(0, 0.02))
+            q_logit = tcl.fully_connected(q, self.c_dim, activation_fn = None, weights_initializer = tf.random_normal_initializer(0, 0.02))
+
+        return q_logit
+
+
+    def set(self, h_dim, c_dim):
+        self.h_dim = h_dim
+        self.c_dim = c_dim
+
